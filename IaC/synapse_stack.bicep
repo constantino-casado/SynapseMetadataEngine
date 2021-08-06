@@ -1,15 +1,19 @@
-param prefix string = 'etlframework'
+param prefix string = 'etlfwk'
 param location string = 'westeurope'
 
-//  The stack is within a Res Group and composed of a Storage Account with a Hierarchical Namespace. 
-//  + KeyVault + Synapse Workspace
+// The stack is within a Res Group and composed of a Storage Account with a Hierarchical Namespace.
+// + Synapse Workspace
 //
 var resgroupname = '${prefix}-rg'
-var saname = '${prefix}-sa'
+var saname = '${prefix}sa'
+var wsname =  '${prefix}ws'
+// var saurl = 'https://${saname}.dfs.core.windows.net'
+var container = 'datalake'
 
+targetScope = 'subscription'
 
-module myModule 'resgroup.bicep' = {
-  name: 'myModule'
+module resgroupMod 'resgroup.bicep' = {
+  name: 'resgroupModule'
   params: {
     resgroupname: resgroupname
     location: location
@@ -18,81 +22,33 @@ module myModule 'resgroup.bicep' = {
   scope: subscription()
 }
 
-
 // modules deployed to resource group
-targetScope = resourceGroup(resgroupname)
 
-resource stg 'Microsoft.Storage/storageAccounts@2019-06-01' = {
-  name: saname // must be globally unique
-  location: location
-  kind: 'Storage'
-  sku: {
-    name: 'Standard_LRS'
+module storageMod 'storage_mod.bicep' = {
+  name: 'storageModule'
+  params: {
+    saname: saname
+    location: location
+    containername: container
   }
+  // deploy this module at the subscription scope
+  scope: resourceGroup(resgroupname)
 }
 
-resource symbolicname 'Microsoft.Synapse/workspaces@2021-03-01' = {
-  name: 'string'
-  tags: {}
-  location: 'string'
-  properties: {
-    defaultDataLakeStorage: {
-      accountUrl: 'string'
-      filesystem: 'string'
-    }
-    sqlAdministratorLoginPassword: 'string'
-    managedResourceGroupName: 'string'
-    sqlAdministratorLogin: 'string'
-    virtualNetworkProfile: {
-      computeSubnetId: 'string'
-    }
-    connectivityEndpoints: {}
-    managedVirtualNetwork: 'string'
-    privateEndpointConnections: [
-      {
-        properties: {
-          privateEndpoint: {}
-          privateLinkServiceConnectionState: {
-            status: 'string'
-            description: 'string'
-          }
-        }
-      }
-    ]
-    encryption: {
-      cmk: {
-        key: {
-          name: 'string'
-          keyVaultUrl: 'string'
-        }
-      }
-    }
-    managedVirtualNetworkSettings: {
-      preventDataExfiltration: bool
-      linkedAccessCheckOnTargetResource: bool
-      allowedAadTenantIdsForLinking: [
-        'string'
-      ]
-    }
-    workspaceRepositoryConfiguration: {
-      type: 'string'
-      hostName: 'string'
-      accountName: 'string'
-      projectName: 'string'
-      repositoryName: 'string'
-      collaborationBranch: 'string'
-      rootFolder: 'string'
-      lastCommitId: 'string'
-      tenantId: 'string'
-    }
-    purviewConfiguration: {
-      purviewResourceId: 'string'
-    }
-    networkSettings: {
-      publicNetworkAccess: 'string'
-    }
+module synapseMod 'synapse_mod.bicep' = {
+  name: 'synapseModule'
+  params: {
+    saurl: storageMod.outputs.storageEndpoint.dfs
+    workspacename: wsname
+    location:  location
+    filesystem: container
   }
-  identity: {
-    type: 'string'
-  }
+  dependsOn: [
+    storageMod
+    resgroupMod
+  ]
+  // deploy this module at the subscription scope
+  scope: resourceGroup(resgroupname)
 }
+
+
